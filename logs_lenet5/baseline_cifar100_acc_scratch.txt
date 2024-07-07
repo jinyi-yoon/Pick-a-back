@@ -1,0 +1,1 @@
+{"food_containers": "0.7180", "non-insect_invertebrates": "0.6640"}
