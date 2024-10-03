@@ -2,8 +2,6 @@
 JinYi Yoon and HyungJune Lee, 'Pick-a-back: Selective Device-to-Device Knowledge Transfer in Federated Continual Learning,' ECCV 2024.
 [\[paper\]](https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/07822.pdf) [\[supplemental\]](https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/07822-supp.pdf) [\[poster\]](https://eccv.ecva.net/media/PosterPDFs/ECCV%202024/2318.png?t=1727379515.5465474) [\[video\]](https://youtu.be/KJjeqd-_7GI) [\[slides\]](https://eccv.ecva.net/media/eccv-2024/Slides/2318_r6uBoFP.pdf)
 
-[![Pick-a-back@ECCV](https://github.com/user-attachments/assets/6e390e72-fc54-42a2-8bc4-62cb9c4b1a5f)](https://youtu.be/KJjeqd-_7GI)
-
 First of all, we would like to express our sincere gratitude to the open source for their valuable contributions to this research:
 * [ModelDiff: testing-based DNN similarity comparison for model reuse detection](https://github.com/MadryLab/modeldiff)
 * [Compacting, Picking and Growing for Unforgetting Continual Learning](https://github.com/ivclab/CPG)
