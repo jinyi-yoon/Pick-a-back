@@ -84,3 +84,18 @@ bash run_pickaback/w_backbone.sh
 ```
 The checkpoints are available at 'checkpoints_lenet5/CPG_fromsingle_scratch_woexp_target.' You can get the final accuracy as follows:
 > 2023-04-11 21:40:14,129 - root - INFO - In validate()-> Val Ep. #100 loss: 0.742, accuracy: 75.60, sparsity: 0.000, task2 ratio: 1.794, zero ratio: 0.000, mpl: 1.4142135623730951, shared_ratio: 0.778
+
+
+## Citation
+
+If you find this work useful for your research and applications, please cite using this BibTeX:
+```bibtex
+@inproceedings{yoon2024pick,
+  title={Pick-a-Back: Selective Device-to-Device Knowledge Transfer in Federated Continual Learning},
+  author={Yoon, JinYi and Lee, HyungJune},
+  booktitle={European Conference on Computer Vision},
+  pages={165--182},
+  year={2024},
+  organization={Springer}
+}
+```
