@@ -4,6 +4,7 @@
 import argparse
 import json
 import warnings
+import yaml
 
 import torch
 import torch.nn as nn
@@ -23,7 +24,7 @@ import numpy as np
 import utils
 from utils import Optimizers, set_logger
 from utils.manager import Manager
-import utils.cifar100_dataset as dataset
+import utils.dataset as dataset
 import models
 import models.layers as nl
 
@@ -44,17 +45,14 @@ model_urls = {
     'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
     'mobilenetv2': 'https://download.pytorch.org/models/mobilenet_v2-b0353104.pth',
-    # Weights ported from https://github.com/rwightman/pytorch-image-models/
     "efficientnetb0": "https://download.pytorch.org/models/efficientnet_b0_rwightman-3dd342df.pth",
     "efficientnetb1": "https://download.pytorch.org/models/efficientnet_b1_rwightman-533bc792.pth",
     "efficientnetb2": "https://download.pytorch.org/models/efficientnet_b2_rwightman-bcdf34b7.pth",
     "efficientnetb3": "https://download.pytorch.org/models/efficientnet_b3_rwightman-cf984f9c.pth",
     "efficientnetb4": "https://download.pytorch.org/models/efficientnet_b4_rwightman-7eb33cd5.pth",
-    # Weights ported from https://github.com/lukemelas/EfficientNet-PyTorch/
     "efficientnetb5": "https://download.pytorch.org/models/efficientnet_b5_lukemelas-b6417697.pth",
     "efficientnetb6": "https://download.pytorch.org/models/efficientnet_b6_lukemelas-c76e70fd.pth",
     "efficientnetb7": "https://download.pytorch.org/models/efficientnet_b7_lukemelas-dcc49843.pth",
-
 }
 
 # To prevent PIL warnings.
@@ -96,12 +94,9 @@ parser.add_argument('--threshold_fn',
 parser.add_argument('--threshold', type=float, default=2e-3, help='')
 
 # Paths.
-parser.add_argument('--dataset', type=str, default='',
-                   help='Name of dataset')
-parser.add_argument('--train_path', type=str, default='',
-                   help='Location of train data')
-parser.add_argument('--val_path', type=str, default='',
-                   help='Location of test data')
+parser.add_argument('--dataset', type=str, default='', help='Name of dataset (or subfolder for datasets with subfolders)')
+parser.add_argument('--dataset_config', type=str, default='n24news', choices=["cifar100", "n24news"],
+                   help='Dataset configuration key defined in dataset_config.yaml (e.g., cifar100, n24news)')
 parser.add_argument('--save_prefix', type=str, default='checkpoints/',
                    help='Location to save model')
 
@@ -143,9 +138,13 @@ def main():
     """Do stuff."""
     args = parser.parse_args()
 
-    # Don't use this, neither set learning rate as a linear function
-    # of the count of gpus, it will make accuracy lower
-    # args.batch_size = args.batch_size * torch.cuda.device_count()
+    config_path = os.path.join(os.path.dirname(__file__), 'utils', 'dataset_config.yaml')
+    with open(config_path, 'r') as f:
+        config_yaml = yaml.safe_load(f)
+    if args.num_classes < 0:
+        # args.dataset_config (예: "cifar100" 또는 "n24news") 섹션에서 num_classes 값을 가져옴
+        args.num_classes = config_yaml[args.dataset_config]['num_classes']
+
     args.network_width_multiplier = math.sqrt(args.network_width_multiplier)
     args.max_allowed_network_width_multiplier = math.sqrt(args.max_allowed_network_width_multiplier)
     if args.mode == 'prune':
@@ -172,24 +171,20 @@ def main():
     torch.manual_seed(args.seed)
     if args.cuda:
         torch.cuda.manual_seed_all(args.seed)
-        #cudnn.benchmark = True
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    # If set > 0, will resume training from a given checkpoint.
     resume_from_epoch = 0
     resume_folder = args.load_folder
     for try_epoch in range(1000, 0, -1):
-        if os.path.exists(args.checkpoint_format.format(
-            save_folder=resume_folder, epoch=try_epoch)):
+        if os.path.exists(args.checkpoint_format.format(save_folder=resume_folder, epoch=try_epoch)):
             resume_from_epoch = try_epoch
             break
 
     if args.restore_epoch:
         resume_from_epoch = args.restore_epoch
 
-    # Set default train and test path if not provided as input.
-    utils.set_dataset_paths(args)
+    # utils.set_dataset_paths(args)
 
     if resume_from_epoch:
         filepath = args.checkpoint_format.format(save_folder=resume_folder, epoch=resume_from_epoch)
@@ -201,7 +196,7 @@ def main():
         shared_layer_info = checkpoint['shared_layer_info']
         if 'num_for_construct' in checkpoint_keys:
             num_for_construct = checkpoint['num_for_construct']
-        if args.mode == 'inference' and 'network_width_multiplier' in shared_layer_info[args.dataset]: # TODO, temporary solution
+        if args.mode == 'inference' and 'network_width_multiplier' in shared_layer_info[args.dataset]:
             args.network_width_multiplier = shared_layer_info[args.dataset]['network_width_multiplier']
     else:
         dataset_history = []
@@ -238,16 +233,37 @@ def main():
         custom_cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M']
         model = models.__dict__[args.arch](custom_cfg, dataset_history=dataset_history, dataset2num_classes=dataset2num_classes,
             network_width_multiplier=args.network_width_multiplier, shared_layer_info=shared_layer_info)
+    elif args.arch == 'perceiver':
+        model = models.__dict__[args.arch](
+                                    input_channels=3,
+                                    input_axis=2,
+                                    num_freq_bands=6,
+                                    depth=4,
+                                    max_freq=10,
+                                    num_latents=256,
+                                    latent_dim=512,
+                                    cross_heads=1,
+                                    latent_heads=8,
+                                    cross_dim_head=64,
+                                    latent_dim_head=64,
+                                    attn_dropout=0.,
+                                    ff_dropout=0.,
+                                    weight_tie_layers=False,
+                                    fourier_encode_data=True,
+                                    self_per_cross_attn=1,
+                                    final_classifier_head=False,
+                                    dataset_history=dataset_history,
+                                    dataset2num_classes=dataset2num_classes)
     else:
         print('Error!')
         sys.exit(1)
 
-    # Add and set the model dataset.
-    model.add_dataset(args.dataset, args.num_classes)
-    model.set_dataset(args.dataset)
+   
+    model_dataset = args.dataset if args.dataset else args.dataset_config
+    model.add_dataset(model_dataset, args.num_classes)
+    model.set_dataset(model_dataset)
     model = model.cuda()
 
-    # For datasets whose image_size is 224 and also the first task
     if args.use_imagenet_pretrained:
         curr_model_state_dict = model.state_dict()
         if args.arch == 'custom_vgg':
@@ -300,7 +316,6 @@ def main():
                     mask = mask.cuda()
                 masks[name] = mask
     else:
-        # when we expand network, we need to allocate new masks
         NEED_ADJUST_MASK = False
         for name, module in model.named_modules():
             if isinstance(module, nl.SharableConv2d):
@@ -310,7 +325,6 @@ def main():
                 elif masks[name].size(1) > module.weight.data.size(1):
                     assert args.mode == 'inference'
                     NEED_ADJUST_MASK = True
-
         if NEED_ADJUST_MASK:
             if args.mode == 'finetune':
                 for name, module in model.named_modules():
@@ -342,7 +356,6 @@ def main():
                         masks[name] = mask
 
     if args.dataset not in shared_layer_info:
-
         shared_layer_info[args.dataset] = {
             'bias': {},
             'bn_layer_running_mean': {},
@@ -351,7 +364,6 @@ def main():
             'bn_layer_bias': {},
             'piggymask': {}
         }
-
         piggymasks = {}
         task_id = model.datasets.index(args.dataset) + 1
         if task_id > 1:
@@ -362,14 +374,13 @@ def main():
                     piggymasks[name] = Parameter(piggymasks[name])
                     module.piggymask = piggymasks[name]
     elif args.finetune_again:
-       # reinitialize piggymask
-       piggymasks = {}
-       for name, module in model.named_modules():
-           if isinstance(module, nl.SharableConv2d) or isinstance(module, nl.SharableLinear):
-               piggymasks[name] = torch.zeros_like(masks[name], dtype=torch.float32)
-               piggymasks[name].fill_(0.01)
-               piggymasks[name] = Parameter(piggymasks[name])
-               module.piggymask = piggymasks[name]
+        piggymasks = {}
+        for name, module in model.named_modules():
+            if isinstance(module, nl.SharableConv2d) or isinstance(module, nl.SharableLinear):
+                piggymasks[name] = torch.zeros_like(masks[name], dtype=torch.float32)
+                piggymasks[name].fill_(0.01)
+                piggymasks[name] = Parameter(piggymasks[name])
+                module.piggymask = piggymasks[name]
     else:
         piggymasks = shared_layer_info[args.dataset]['piggymask']
         task_id = model.datasets.index(args.dataset) + 1
@@ -379,10 +390,10 @@ def main():
                     module.piggymask = piggymasks[name]
     shared_layer_info[args.dataset]['network_width_multiplier'] = args.network_width_multiplier
 
-    train_loader = dataset.train_loader(args.dataset, args.batch_size)
-    val_loader = dataset.val_loader(args.dataset, args.val_batch_size)
+  
+    train_loader = dataset.train_loader(args.dataset_config, args.batch_size, dataset_name=args.dataset)
+    val_loader = dataset.val_loader(args.dataset_config, args.val_batch_size, dataset_name=args.dataset)
 
-    # if we are going to save checkpoint in other folder, then we recalculate the starting epoch
     if args.save_folder != args.load_folder:
         start_epoch = 0
     else:
@@ -399,7 +410,6 @@ def main():
 
     lr = args.lr
     lr_mask = args.lr_mask
-    # update all layers
     named_params = dict(model.named_parameters())
     params_to_optimize_via_SGD = []
     named_of_params_to_optimize_via_SGD = []
@@ -430,7 +440,6 @@ def main():
 
     manager.load_checkpoint(optimizers, resume_from_epoch, resume_folder)
 
-    """Performs training."""
     curr_lrs = []
     for optimizer in optimizers:
         for param_group in optimizer.param_groups:
@@ -452,7 +461,6 @@ def main():
                 json_data = json.load(json_file)
 
         if args.network_width_multiplier == args.max_allowed_network_width_multiplier and json_data['0.0'] < baseline_acc:
-            # If we reach the upperbound and still do not get the accuracy over our target on curr task, we still do pruning
             logging.info('we reach the upperbound and still do not get the accuracy over our target on curr task')
             remain_num_tasks = args.total_num_tasks - len(dataset_history)
             logging.info('remain_num_tasks: {}'.format(remain_num_tasks))
@@ -475,20 +483,17 @@ def main():
 
         stop_lr_mask = True
         if manager.pruner.calculate_curr_task_ratio() == 0.0:
-            logging.info('There is no left space in convolutional layer for curr task'
-                  ', we will try to use prior experience as long as possible')
+            logging.info('There is no left space in convolutional layer for curr task, we will try to use prior experience as long as possible')
             stop_lr_mask = False
 
     for epoch_idx in range(start_epoch, args.epochs):
         avg_train_acc, curr_prune_step = manager.train(optimizers, epoch_idx, curr_lrs, curr_prune_step)
-
         avg_val_acc = manager.validate(epoch_idx)
         csv_wr.writerow([epoch_idx, avg_val_acc, avg_train_acc])
 
         if args.finetune_again:
             if avg_val_acc > history_best_avg_val_acc_when_retraining:
                 history_best_avg_val_acc_when_retraining = avg_val_acc
-
                 num_epochs_that_criterion_does_not_get_better = 0
                 if args.save_folder is not None:
                     for path in os.listdir(args.save_folder):
@@ -497,7 +502,6 @@ def main():
                 else:
                     print('Something is wrong! Block the program with pdb')
                     pdb.set_trace()
-
                 history_best_avg_val_acc = avg_val_acc
                 manager.save_checkpoint(optimizers, epoch_idx, args.save_folder)
             else:
@@ -519,7 +523,6 @@ def main():
                 if stop_lr_mask and epoch_idx + 1 == 70:
                     for param_group in optimizers[1].param_groups:
                         param_group['lr'] *= 0.0
-
                 curr_lrs[1] = param_group['lr']
     csv_file.close()
     
@@ -565,23 +568,21 @@ def main():
                 with open(args.pruning_ratio_to_acc_record_file, 'w') as json_file:
                     json.dump(json_data, json_file)
             else:
-                json_data[args.target_sparsity] = round(avg_val_acc, 4) ##### Jinee added #####
-                with open(args.pruning_ratio_to_acc_record_file, 'w') as json_file: ##### Jinee added #####
-                    json.dump(json_data, json_file) ##### Jinee added #####
+                json_data[args.target_sparsity] = round(avg_val_acc, 4)
+                with open(args.pruning_ratio_to_acc_record_file, 'w') as json_file:
+                    json.dump(json_data, json_file)
                 sys.exit(6)
 
             must_pruning_ratio_for_curr_task = 0.0
 
             if args.network_width_multiplier == args.max_allowed_network_width_multiplier and json_data['0.0'] < baseline_acc:
-                # If we reach the upperbound and still do not get the accuracy over our target on curr task, we still do pruning
                 logging.info('we reach the upperbound and still do not get the accuracy over our target on curr task')
                 remain_num_tasks = args.total_num_tasks - len(dataset_history)
                 logging.info('remain_num_tasks: {}'.format(remain_num_tasks))
                 ratio_allow_for_curr_task = round(1.0 / (remain_num_tasks + 1), 1)
                 logging.info('ratio_allow_for_curr_task: {:.4f}'.format(ratio_allow_for_curr_task))
                 must_pruning_ratio_for_curr_task = 1.0 - ratio_allow_for_curr_task
-                if args.target_sparsity >= must_pruning_ratio_for_curr_task:
+                if args.initial_sparsity >= must_pruning_ratio_for_curr_task:
                     sys.exit(6)
-
 if __name__ == '__main__':
     main()

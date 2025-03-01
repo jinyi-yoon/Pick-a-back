@@ -1,47 +1,36 @@
 #!/bin/bash
 
+# 사용법: ./run_experiment.sh dataset_config
+if [ "$#" -lt 1 ]; then
+    echo "Usage: $0 dataset_config"
+    exit 1
+fi
 
-DATASETS=(
-    'None'                # dummy
-    'aquatic_mammals'
-    'fish'
-    'flowers'
-    'food_containers'
-    'fruit_and_vegetables'
-    'household_electrical_devices'
-    'household_furniture'
-    'insects'
-    'large_carnivores'
-    'large_man-made_outdoor_things'
-    'large_natural_outdoor_scenes'
-    'large_omnivores_and_herbivores'
-    'medium_mammals'
-    'non-insect_invertebrates'
-    'people'
-    'reptiles'
-    'small_mammals'
-    'trees'
-    'vehicles_1'
-    'vehicles_2'
-)
+DATASET_CONFIG=$1
+
+DATASET=$(python3 get_dataset_name.py $DATASET_CONFIG $TASK_ID)
 
 GPU_ID=0
-ARCH='lenet5'
+ARCH='perceiver'
 FINETUNE_EPOCHS=100
 seed=2
 
 ####################
 ##### Baseline #####
 ####################
-TASK_ID=4
 
-CUDA_VISIBLE_DEVICES=$GPU_ID python packnet_cifar100_main_normal.py \
-    --arch $ARCH \
-    --dataset ${DATASETS[TASK_ID]} --num_classes 5 \
-    --lr 1e-2 \
-    --weight_decay 4e-5 \
-    --save_folder checkpoints_${ARCH}/baseline_scratch/$ARCH/${DATASETS[TASK_ID]} \
-    --epochs $FINETUNE_EPOCHS \
-    --mode finetune \
-    --logfile logs_${ARCH}/baseline_cifar100_acc_scratch.txt \
-    --seed $seed        
+# TASK_ID=4
+for TASK_ID in {1..20}; do
+    CUDA_VISIBLE_DEVICES=$GPU_ID python packnet_cifar100_main_normal.py \
+        --arch $ARCH \
+        --dataset_config $DATASET_CONFIG \
+        --dataset $DATASET \
+        --num_classes -1 \
+        --lr 1e-2 \
+        --weight_decay 4e-5 \
+        --save_folder checkpoints_${ARCH}/baseline_scratch/$ARCH/${DATASET_CONFIG}/${DATASET} \
+        --epochs $FINETUNE_EPOCHS \
+        --mode finetune \
+        --logfile logs_${ARCH}/baseline_${DATASET_CONFIG}_acc.txt \
+        --seed $seed 
+done

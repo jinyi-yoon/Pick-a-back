@@ -4,3 +4,4 @@ from .resnet import *
 from .efficientnet import *
 from .mobilenet import *
 from .spherenet import *
+from .perceiver import *

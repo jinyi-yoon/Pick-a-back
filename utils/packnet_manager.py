@@ -17,7 +17,8 @@ class Manager(object):
         self.args  = args
         self.model = model
         self.shared_layer_info = shared_layer_info
-        self.inference_dataset_idx = self.model.datasets.index(args.dataset) + 1 ##### Jinee ##### self.inference_dataset_idx = self.model.module.datasets.index(args.dataset) + 1
+        dataset_name = args.dataset if args.dataset else args.dataset_config
+        self.inference_dataset_idx = self.model.datasets.index(dataset_name) + 1 ##### Jinee ##### self.inference_dataset_idx = self.model.module.datasets.index(args.dataset) + 1
         self.pruner = SparsePruner(self.model, masks, self.args, None, None, self.inference_dataset_idx)
         self.train_loader = train_loader
         self.val_loader   = val_loader

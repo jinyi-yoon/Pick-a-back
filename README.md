@@ -1,4 +1,8 @@
 # Pick-a-back
+
+데이터 위치: '/data_library'
+
+---
 JinYi Yoon and HyungJune Lee, 'Pick-a-back: Selective Device-to-Device Knowledge Transfer in Federated Continual Learning,' ECCV 2024.
 [\[paper\]](https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/07822.pdf) [\[supplemental\]](https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/07822-supp.pdf) [\[poster\]](https://eccv.ecva.net/media/PosterPDFs/ECCV%202024/2318.png?t=1727379515.5465474) [\[video\]](https://youtu.be/KJjeqd-_7GI) [\[slides\]](https://eccv.ecva.net/media/eccv-2024/Slides/2318_r6uBoFP.pdf)
 
